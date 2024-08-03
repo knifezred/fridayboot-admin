@@ -4,7 +4,7 @@ import { defineStore } from 'pinia';
 import { useLoading } from '@sa/hooks';
 import { SetupStoreId } from '@/enum';
 import { useRouterPush } from '@/hooks/common/router';
-import { fetchGetUserInfo, fetchLogin } from '@/service/api';
+import { fetchGetUserInfo, fetchLogin, fetchLogout } from '@/service/api';
 import { localStg } from '@/utils/storage';
 import { $t } from '@/locales';
 import { useRouteStore } from '../route';
@@ -40,6 +40,8 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   /** Reset auth store */
   async function resetStore() {
     const authStore = useAuthStore();
+
+    await fetchLogout();
 
     clearAuthStorage();
 
@@ -90,16 +92,16 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
     endLoading();
   }
 
-  async function loginByToken(loginToken: Api.Auth.LoginToken) {
+  async function loginByToken(loginToken: Dto.Auth.LoginToken) {
     // 1. stored in the localStorage, the later requests need it in headers
-    localStg.set('token', loginToken.token);
+    localStg.set('token', loginToken.accessToken);
     localStg.set('refreshToken', loginToken.refreshToken);
 
     // 2. get user info
     const pass = await getUserInfo();
 
     if (pass) {
-      token.value = loginToken.token;
+      token.value = loginToken.accessToken;
 
       return true;
     }
@@ -108,9 +110,15 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   }
 
   async function getUserInfo() {
-    const { data: info, error } = await fetchGetUserInfo();
+    const { data: infoDto, error } = await fetchGetUserInfo();
 
     if (!error) {
+      const info: Api.Auth.UserInfo = {
+        userId: infoDto.account || '',
+        userName: infoDto.username || '',
+        roles: infoDto.userRoles,
+        buttons: infoDto.permissions
+      };
       // update store
       Object.assign(userInfo, info);
 
